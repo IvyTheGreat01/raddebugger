@@ -26,6 +26,7 @@
 ////////////////////////////////
 //~ NOTE(allen): File Iterator
 
+typedef struct LNX_FileIter LNX_FileIter;
 struct LNX_FileIter{
   int fd;
   DIR *dir;
@@ -35,13 +36,15 @@ StaticAssert(sizeof(Member(OS_FileIter, memory)) >= sizeof(LNX_FileIter), file_i
 ////////////////////////////////
 //~ NOTE(allen): Threading Entities
 
-enum LNX_EntityKind{
+typedef enum LNX_EntityKind{
   LNX_EntityKind_Null,
   LNX_EntityKind_Thread,
   LNX_EntityKind_Mutex,
   LNX_EntityKind_ConditionVariable,
-};
+}
+LNX_EntityKind;
 
+typedef struct LNX_Entity LNX_Entity;
 struct LNX_Entity{
   LNX_Entity *next;
   LNX_EntityKind kind;
@@ -60,6 +63,7 @@ struct LNX_Entity{
 ////////////////////////////////
 //~ NOTE(allen): Safe Call Chain
 
+typedef struct LNX_SafeCallChain LNX_SafeCallChain;
 struct LNX_SafeCallChain{
   LNX_SafeCallChain *next;
   OS_ThreadFunctionType *fail_handler;

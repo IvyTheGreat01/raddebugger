@@ -360,7 +360,7 @@ mg_str_expr_parse_from_first_opl__min_prec(Arena *arena, MD_Node *first, MD_Node
     
     //- rjf: consume prefix operators
     MG_StrExpr *leafmost_op = &mg_str_expr_nil;
-    for(;it < opl && !md_node_is_nil(it);)
+    for(;(it < opl && !md_node_is_nil(it)) || (md_node_is_nil(opl) && it != opl);)
     {
       MG_StrExprOp found_op = MG_StrExprOp_Null;
       for(MG_StrExprOp op = (MG_StrExprOp)(MG_StrExprOp_Null+1);

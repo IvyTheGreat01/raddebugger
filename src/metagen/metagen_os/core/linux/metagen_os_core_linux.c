@@ -19,11 +19,11 @@ thread_static LNX_SafeCallChain *lnx_safe_call_chain = 0;
 
 internal B32
 lnx_write_list_to_file_descriptor(int fd, String8List list){
-  B32 success = true;
+  B32 success = 1;
   
   String8Node *node = list.first;
   if (node != 0){
-    U8 *ptr = node->string.str;;
+    U8 *ptr = node->string.str;
     U8 *opl = ptr + node->string.size;
     
     U64 p = 0;
@@ -42,7 +42,7 @@ lnx_write_list_to_file_descriptor(int fd, String8List list){
         node = node->next;
         if (node == 0){
           if (p < list.total_size){
-            success = false;
+            success = 0;
           }
           break;
         }
@@ -800,8 +800,9 @@ lnx_thread_base(void *ptr){
   return(0);
 }
 
+// ivy
 internal void
-lnx_safe_call_sig_handler(int){
+lnx_safe_call_sig_handler(int _x){
   LNX_SafeCallChain *chain = lnx_safe_call_chain;
   if (chain != 0 && chain->fail_handler != 0){
     chain->fail_handler(chain->ptr);
@@ -839,8 +840,9 @@ os_init(int argc, char **argv)
   Arena *perm_arena = arena_alloc();
   lnx_perm_arena = perm_arena;
   
+  // ivy
   // NOTE(allen): Initialize Paths
-  lnx_initial_path = os_get_path(lnx_perm_arena, OS_SystemPath_Current);
+  lnx_initial_path = os_string_from_system_path(lnx_perm_arena, OS_SystemPath_Current);
   
   // NOTE(rjf): Setup command line args
   lnx_cmd_line_args = os_string_list_from_argcv(lnx_perm_arena, argc, argv);
@@ -859,7 +861,7 @@ internal B32
 os_commit(void *ptr, U64 size){
   mprotect(ptr, size, PROT_READ|PROT_WRITE);
   // TODO(allen): can we test this?
-  return(true);
+  return(1);
 }
 
 internal void*
@@ -885,16 +887,19 @@ os_release(void *ptr, U64 size){
   munmap(ptr, size);
 }
 
-internal void
+// ivy
+internal B32
 os_set_large_pages(B32 flag)
 {
   NotImplemented;
+  return 0;
 }
 
 internal B32
 os_large_pages_enabled(void)
 {
-  NotImplemented;
+  // ivy for now hard code to false
+  //NotImplemented;
   return 0;
 }
 
@@ -923,17 +928,18 @@ os_free_ring_buffer(void *ring_buffer, U64 actual_size)
 
 internal String8
 os_machine_name(void){
-  local_persist B32 first = true;
+  local_persist B32 first = 1;
   local_persist String8 name = {0};
   
   // TODO(allen): let's just pre-compute this at init and skip the complexity
   pthread_mutex_lock(&lnx_mutex);
   if (first){
     Temp scratch = scratch_begin(0, 0);
-    first = false;
+    first = 0;
     
     // get name
-    B32 got_final_result = false;
+#if 0
+    B32 got_final_result = 0;
     U8 *buffer = 0;
     int size = 0;
     for (S64 cap = 4096, r = 0;
@@ -943,10 +949,18 @@ os_machine_name(void){
       buffer = push_array_no_zero(scratch.arena, U8, cap);
       size = gethostname((char*)buffer, cap);
       if (size < cap){
-        got_final_result = true;
+        got_final_result = 1;
         break;
       }
     }
+#else
+    // ivy
+    // because scatch.restore() doesnt exist, just try gethostname() with the cap of the last loop
+    S64 cap = 4096 * 2 * 2 * 2;
+    U8 *buffer = push_array_no_zero(scratch.arena, U8, cap);
+    int size = gethostname((char*)buffer, cap);
+    B32 got_final_result = (size < cap);
+#endif
     
     // save string
     if (got_final_result && size > 0){
@@ -973,7 +987,7 @@ internal U64
 os_allocation_granularity(void)
 {
   // On linux there is no equivalent of "dwAllocationGranularity"
-  os_page_size();
+  return os_page_size(); // ivy
 }
 
 internal U64
@@ -1024,19 +1038,21 @@ os_string_list_from_system_path(Arena *arena, OS_SystemPath path, String8List *o
   switch (path){
     case OS_SystemPath_Binary:
     {
-      local_persist B32 first = true;
+      local_persist B32 first = 1;
       local_persist String8 name = {0};
       
       // TODO(allen): let's just pre-compute this at init and skip the complexity
       pthread_mutex_lock(&lnx_mutex);
       if (first){
         Temp scratch = scratch_begin(&arena, 1);
-        first = false;
+        first = 0;
         
         // get self string
-        B32 got_final_result = false;
+#if 0
+        B32 got_final_result = 0;
         U8 *buffer = 0;
         int size = 0;
+        // Why this loop??
         for (S64 cap = PATH_MAX, r = 0;
              r < 4;
              cap *= 2, r += 1){
@@ -1044,15 +1060,23 @@ os_string_list_from_system_path(Arena *arena, OS_SystemPath path, String8List *o
           buffer = push_array_no_zero(scratch.arena, U8, cap);
           size = readlink("/proc/self/exe", (char*)buffer, cap);
           if (size < cap){
-            got_final_result = true;
+            got_final_result = 1;
             break;
           }
         }
+#else
+        // ivy
+        // because scratch.restore() doesnt exist, just try readlink() with the cap of the last loop
+        S64 cap = PATH_MAX * 2 * 2 * 2;
+        U8 *buffer = push_array_no_zero(scratch.arena, U8, cap);
+        int size = readlink("/proc/self/exe", (char*)buffer, cap);
+        B32 got_final_result = (size < cap);
+#endif
         
         // save string
         if (got_final_result && size > 0){
           String8 full_name = str8(buffer, size);
-          String8 name_chopped = string_path_chop_last_slash(full_name);
+          String8 name_chopped = str8_chop_last_slash(full_name);
           name = push_str8_copy(lnx_perm_arena, name_chopped);
         }
         
@@ -1112,25 +1136,82 @@ os_exit_process(S32 exit_code){
 
 //- rjf: files
 
+// ivy
 internal OS_Handle
 os_file_open(OS_AccessFlags flags, String8 path)
 {
-  OS_Handle file = {0};
-  NotImplemented;
-  return file;
+  OS_Handle result = {0};
+  Temp scratch = scratch_begin(0, 0);
+
+  String8 path_null_term = push_str8_copy(scratch.arena, path);
+
+  int access_flags = 0;
+  mode_t mode = 0;
+
+  if ((flags & OS_AccessFlag_Read) && (flags & OS_AccessFlag_Write)){
+    access_flags = O_RDWR | O_TRUNC | O_CREAT;
+    mode = 0666;
+  }
+  else if (flags & OS_AccessFlag_Read){
+    access_flags = O_RDONLY;
+  }
+  else if (flags & OS_AccessFlag_Write){
+    access_flags = O_WRONLY | O_TRUNC | O_CREAT;
+    mode = 0666;
+  }
+  // TODO(ivy) should Os_AccessFlag_Execute and OS_AccessFlag_Shared be ignored
+
+  int file = open((char *)path_null_term.str, access_flags, mode);
+  if (file >= 0){
+    result.u64[0] = (U64)file;
+  }
+
+  scratch_end(scratch);
+  return result;
 }
 
 internal void
 os_file_close(OS_Handle file)
 {
-  NotImplemented;
+  if(os_handle_match(file, os_handle_zero())) { return; }
+  int fd = (int)file.u64[0];
+  int err = close(fd);
+  if (err) { NotImplemented; } // TODO(ivy): how to handle error?
+  return;
 }
 
+// ivy
 internal U64
 os_file_read(OS_Handle file, Rng1U64 rng, void *out_data)
 {
-  NotImplemented;
-  return 0;
+  if(os_handle_match(file, os_handle_zero())) { return 0; }
+
+  int fd = (int)file.u64[0];
+  U64 size = lseek(fd, 0, SEEK_END);
+
+  Rng1U64 rng_clamped = r1u64(ClampTop(rng.min, size), ClampTop(rng.max, size));
+  U64 total_read_size = 0;
+
+  {
+    lseek(fd, rng_clamped.min, SEEK_SET);
+    U64 to_read = dim_1u64(rng_clamped);
+    while(total_read_size < to_read)
+    {
+      U64 amt64 = to_read - total_read_size;
+      ssize_t read_size = read(fd, (U8 *)out_data + total_read_size, amt64);
+      if (read_size < 0){ NotImplemented; } // TODO(ivy): check for errors but win32 version doesnt seem to
+      total_read_size += read_size;
+      if (read_size != amt64)
+      {
+          // NOTE(ivy): why this break (from win32),
+          // isnt the point of the loop to keep reading as many times as necessary?
+          break;
+      }
+    }
+    lseek(fd, 0, SEEK_SET); // ivy: just in case
+  }
+
+  return total_read_size;
 }
 
 internal void
@@ -1145,11 +1226,18 @@ os_file_set_times(OS_Handle file, DateTime time)
   NotImplemented;
 }
 
+// ivy
 internal FileProperties
 os_properties_from_file(OS_Handle file)
 {
+  if (os_handle_match(file, os_handle_zero())) { FileProperties r = {0}; return r; }
   FileProperties props = {0};
-  NotImplemented;
+  int fd = (int)file.u64[0];
+  struct stat stat;
+  int err = fstat(fd, &stat);
+  if (!err){
+    lnx_file_properties_from_stat(&props, &stat);
+  }
   return props;
 }
 
@@ -1166,10 +1254,10 @@ internal B32
 os_delete_file_at_path(String8 path)
 {
   Temp scratch = scratch_begin(0, 0);
-  B32 result = false;
-  String8 name_copy = push_str8_copy(scratch.arena, name);
-  if (remove((char*)name_copy.str) != -1){
-    result = true;
+  B32 result = 0;
+  String8 path_copy = push_str8_copy(scratch.arena, path);
+  if (remove((char*)path_copy.str) != -1){
+    result = 1;
   }
   scratch_end(scratch);
   return(result);
@@ -1229,36 +1317,107 @@ os_file_map_view_close(OS_Handle map, void *ptr)
 
 //- rjf: directory iteration
 
+// ivy
 internal OS_FileIter *
 os_file_iter_begin(Arena *arena, String8 path, OS_FileIterFlags flags)
 {
-  NotImplemented;
-  return 0;
+  Temp scratch = scratch_begin(&arena, 1);
+  String8 path_with_wildcard = push_str8_cat(scratch.arena, path, str8_lit("/*"));
+
+  OS_FileIter *iter = push_array(arena, OS_FileIter, 1);
+  iter->flags = flags;
+
+  LNX_FileIter *lnx_iter = (LNX_FileIter*)iter->memory;
+
+  String8 path_null_term = push_str8_copy(scratch.arena, path);
+  lnx_iter->dir = opendir((char*)path_null_term.str);
+  lnx_iter->fd = dirfd(lnx_iter->dir);
+
+  scratch_end(scratch);
+  return iter;
 }
 
+// ivy
 internal B32
 os_file_iter_next(Arena *arena, OS_FileIter *iter, OS_FileInfo *info_out)
 {
-  NotImplemented;
-  return 0;
+  B32 result = 0;
+  OS_FileIterFlags flags = iter->flags;
+  LNX_FileIter *lnx_iter = (LNX_FileIter*)iter->memory;
+
+  if (!(flags & OS_FileIterFlag_Done))
+  {
+    struct dirent *dirent = 0;
+    while ((dirent = readdir(lnx_iter->dir)))
+    {
+      char *file_name = dirent->d_name;
+
+      struct stat stat;
+      int err = fstatat(lnx_iter->fd, file_name, &stat, 0);
+      if (err){
+          // TODO(ivy): how to handle errors?
+          break;
+      }
+
+      B32 usable_file = 1;
+
+      if (file_name[0] == '.'){
+        if (flags & OS_FileIterFlag_SkipHiddenFiles){
+          usable_file = 0;
+        }
+        else if (file_name[1] == 0){
+          usable_file = 0;
+        }
+        else if (file_name[1] == '.' && file_name[2] == 0){
+          usable_file = 0;
+        }
+      }
+      if (stat.st_mode & S_IFDIR){
+        if (flags & OS_FileIterFlag_SkipFolders){
+          usable_file = 0;
+        }
+      }
+      else{
+        if (flags & OS_FileIterFlag_SkipFiles){
+          usable_file = 0;
+        }
+      }
+
+      if (usable_file){
+        info_out->name = str8_cstring(file_name);
+        lnx_file_properties_from_stat(&info_out->props, &stat);
+        result = 1;
+        break;
+      }
+    }
+  }
+  
+  if (!result){
+    iter->flags |= OS_FileIterFlag_Done;
+  }
+
+  return result;
 }
 
+// ivy
 internal void
 os_file_iter_end(OS_FileIter *iter)
 {
-  NotImplemented;
+  LNX_FileIter *lnx_iter = (LNX_FileIter*)iter->memory;
+  closedir(lnx_iter->dir);
 }
 
 //- rjf: directory creation
 
+// ivy
 internal B32
 os_make_directory(String8 path)
 {
   Temp scratch = scratch_begin(0, 0);
-  B32 result = false;
-  String8 name_copy = push_str8_copy(scratch.arena, name);
-  if (mkdir((char*)name_copy.str, 0777) != -1){
-    result = true;
+  B32 result = 0;
+  String8 path_copy = push_str8_copy(scratch.arena, path);
+  if (mkdir((char*)path_copy.str, 0777) != -1){
+    result = 1;
   }
   scratch_end(scratch);
   return(result);
@@ -1371,11 +1530,12 @@ os_sleep_milliseconds(U32 msec){
 ////////////////////////////////
 //~ rjf: @os_hooks Child Processes (Implemented Per-OS)
 
+// ivy
 internal B32
-os_launch_process(OS_LaunchOptions *options){
+os_launch_process(OS_LaunchOptions *options, OS_Handle *handle_out){
   // TODO(allen): I want to redo this API before I bother implementing it here
   NotImplemented;
-  return(false);
+  return(0);
 }
 
 ////////////////////////////////
@@ -1404,9 +1564,10 @@ os_launch_thread(OS_ThreadFunctionType *func, void *ptr, void *params){
   return(result);
 }
 
+// ivy
 internal void
 os_release_thread_handle(OS_Handle thread){
-  LNX_Entity *entity = (LNX_Entity*)PtrFromInt(thread.id);
+  LNX_Entity *entity = (LNX_Entity*)PtrFromInt(thread.u64[0]);
   // remove my bit
   U32 result = __sync_fetch_and_and(&entity->reference_mask, ~0x1);
   // if the other bit is also gone, free entity
@@ -1444,22 +1605,25 @@ os_mutex_alloc(void){
   return(result);
 }
 
+// ivy
 internal void
 os_mutex_release(OS_Handle mutex){
-  LNX_Entity *entity = (LNX_Entity*)PtrFromInt(mutex.id);
+  LNX_Entity *entity = (LNX_Entity*)PtrFromInt(mutex.u64[0]);
   pthread_mutex_destroy(&entity->mutex);
   lnx_free_entity(entity);
 }
 
+// ivy
 internal void
 os_mutex_take_(OS_Handle mutex){
-  LNX_Entity *entity = (LNX_Entity*)PtrFromInt(mutex.id);
+  LNX_Entity *entity = (LNX_Entity*)PtrFromInt(mutex.u64[0]);
   pthread_mutex_lock(&entity->mutex);
 }
 
+// ivy
 internal void
 os_mutex_drop_(OS_Handle mutex){
-  LNX_Entity *entity = (LNX_Entity*)PtrFromInt(mutex.id);
+  LNX_Entity *entity = (LNX_Entity*)PtrFromInt(mutex.u64[0]);
   pthread_mutex_unlock(&entity->mutex);
 }
 
@@ -1525,21 +1689,25 @@ os_condition_variable_alloc(void){
   return(result);
 }
 
+// ivy
 internal void
 os_condition_variable_release(OS_Handle cv){
-  LNX_Entity *entity = (LNX_Entity*)PtrFromInt(cv.id);
+  LNX_Entity *entity = (LNX_Entity*)PtrFromInt(cv.u64[0]);
   pthread_cond_destroy(&entity->cond);
   lnx_free_entity(entity);
 }
 
+// ivy
 internal B32
 os_condition_variable_wait_(OS_Handle cv, OS_Handle mutex, U64 endt_us){
-  B32 result = false;
-  LNX_Entity *entity_cond = (LNX_Entity*)PtrFromInt(cv.id);
-  LNX_Entity *entity_mutex = (LNX_Entity*)PtrFromInt(mutex.id);
+  B32 result = 0;
+  LNX_Entity *entity_cond = (LNX_Entity*)PtrFromInt(cv.u64[0]);
+  LNX_Entity *entity_mutex = (LNX_Entity*)PtrFromInt(mutex.u64[0]);
   // TODO(allen): implement the time control
-  pthread_cond_timedwait(&entity_cond->cond, &entity_mutex->mutex);
-  return(result);
+  //pthread_cond_timedwait(&entity_cond->cond, &entity_mutex->mutex, endt_us);
+  //return(result);
+  NotImplemented;
+  return 0;
 }
 
 internal B32
@@ -1556,16 +1724,20 @@ os_condition_variable_wait_rw_w_(OS_Handle cv, OS_Handle mutex_rw, U64 endt_us)
   return 0;
 }
 
+// ivy
 internal void
 os_condition_variable_signal_(OS_Handle cv){
-  LNX_Entity *entity = (LNX_Entity*)PtrFromInt(cv.id);
+  LNX_Entity *entity = (LNX_Entity*)PtrFromInt(cv.u64[0]);
   pthread_cond_signal(&entity->cond);
 }
 
+// ivy
 internal void
 os_condition_variable_broadcast_(OS_Handle cv){
-  LNX_Entity *entity = (LNX_Entity*)PtrFromInt(cv.id);
-  DontCompile;
+  LNX_Entity *entity = (LNX_Entity*)PtrFromInt(cv.u64[0]);
+  //DontCompile;
+  NotImplemented;
+  return;
 }
 
 //- rjf: cross-process semaphores
@@ -1598,8 +1770,9 @@ os_semaphore_close(OS_Handle semaphore)
   NotImplemented;
 }
 
+// ivy
 internal B32
-os_semaphore_take(OS_Handle semaphore)
+os_semaphore_take(OS_Handle semaphore, U64 endt_us)
 {
   NotImplemented;
   return 0;
@@ -1625,21 +1798,23 @@ os_library_open(String8 path)
   return lib;
 }
 
+// ivy
 internal VoidProc *
 os_library_load_proc(OS_Handle lib, String8 name)
 {
   Temp scratch = scratch_begin(0, 0);
-  void *so = (void *)lib.id;
+  void *so = (void *)lib.u64[0];
   char *name_cstr = (char *)push_str8_copy(scratch.arena, name).str;
   VoidProc *proc = (VoidProc *)dlsym(so, name_cstr);
   scratch_end(scratch);
   return proc;
 }
 
+// ivy
 internal void
 os_library_close(OS_Handle lib)
 {
-  void *so = (void *)lib.id;
+  void *so = (void *)lib.u64[0];
   dlclose(so);
 }
 

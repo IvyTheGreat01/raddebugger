@@ -1968,7 +1968,9 @@ demon_os_read_regs_x64(DEMON_Entity *thread, SYMS_RegX64 *dst){
 }
 
 internal B32
-demon_os_write_regs_x64(DEMON_Entity *thread, SYMS_RegX64 *src){
+demon_os_write_regs_x64(DEMON_Entity *thread, REGS_RegBlockX64 *src){ //ivy 
+  NotImplemented; // ivy
+  #if 0
   pid_t tid = (pid_t)thread->id;
   
   // gpr
@@ -2033,6 +2035,7 @@ demon_os_write_regs_x64(DEMON_Entity *thread, SYMS_RegX64 *src){
   B32 result = (gpr_success && fpr_success && dr_success);
   
   return(result);
+  #endif
 }
 
 ////////////////////////////////
